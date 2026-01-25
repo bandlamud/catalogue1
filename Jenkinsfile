@@ -35,6 +35,17 @@ pipeline {
                }
             }
         }
+         stage('Build Image') {
+            steps {
+               script {
+
+                    sh """
+                        docker build -t catalogue:${appVersion}
+                        docker images
+                    """
+               }
+            }
+        }
         stage('Deploy') {
             //     input {
             //     message "Should we continue?"
