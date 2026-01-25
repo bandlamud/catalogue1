@@ -44,34 +44,16 @@ pipeline {
                 withAWS(region:'us-east-1',credentials:'aws-creds') {
                     sh """
                         aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ${ACC_ID}.dkr.ecr.us-east-1.amazonaws.com
-                        docker build -t roboshop/catalogue .
-                        docker tag roboshop/catalogue:latest ${ACC_ID}.dkr.ecr.us-east-1.amazonaws.com/${PROJECT}/${COMPONENT}:latest
+
+                        docker build -t ${ACC_ID}.dkr.ecr.us-east-1.amazonaws.com/${PROJECT}/${COMPONENT}:${appVersion} .
+
+                        docker images
+
                         docker push ${ACC_ID}.dkr.ecr.us-east-1.amazonaws.com/${PROJECT}/${COMPONENT}:${appVersion}
                     """
 
                 }
                }
-            }
-        }
-        stage('Deploy') {
-            //     input {
-            //     message "Should we continue?"
-            //     ok "Yes, we should."
-            //     submitter "alice,bob"
-            //     parameters {
-            //         string(name: 'PERSON', defaultValue: 'Mr Jenkins', description: 'Who should I say hello to?')
-            //     }
-            // }
-            when {
-                expression { "$params.DEPLOY" == "true" }
-            }
-            steps {
-                script {
-
-                    sh """
-                        echo "Deploying"
-                    """
-                }
             }
         }
     }
