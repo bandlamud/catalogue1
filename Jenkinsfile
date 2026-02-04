@@ -65,9 +65,10 @@ pipeline {
                 GITHUB_OWNER = 'bandlamud'
                 GITHUB_REPO  = 'catalogue1'
                 GITHUB_API   = 'https://api.github.com/repos/bandlamud/catalogue1/dependabot/alerts'
+                GITHUB_TOKEN = credentials('GITHUB_TOKEN')
             }
         steps {
-            withCredentials([string(credentialsId: 'GITHUB_TOKEN', variable: 'GITHUB_TOKEN')]) {
+            script{
                 sh '''
                         echo "🔍 Fetching Dependabot alerts..."
 
