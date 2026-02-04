@@ -43,62 +43,55 @@ pipeline {
         }
 
         stage('Dependabot Security Gate') {
+            environment {
+                GITHUB_OWNER = 'bandlamud'
+                GITHUB_REPO  = 'catalogue1'
+                GITHUB_API   = 'https://api.github.com'
+                GITHUB_TOKEN = credentials('GITHUB_TOKEN')
+            }
+
             steps {
-                withCredentials([string(credentialsId: 'GITHUB_TOKEN', variable: 'GITHUB_TOKEN')]) {
+                script{
+                    /* Use sh """ when you want to use Groovy variables inside the shell.
+                    Use sh ''' when you want the script to be treated as pure shell. */
                     sh '''
-                        echo "🔍 Fetching Dependabot alerts..."
+                    echo "Fetching Dependabot alerts..."
 
-                        API_URL="https://api.github.com/repos/bandlamud/catalogue1/dependabot/alerts"
+                    response=$(curl -s \
+                        -H "Authorization: token ${GITHUB_TOKEN}" \
+                        -H "Accept: application/vnd.github+json" \
+                        "${GITHUB_API}/repos/${GITHUB_OWNER}/${GITHUB_REPO}/dependabot/alerts?per_page=100")
 
-                        response=$(curl -s \
-                          -H "Authorization: Bearer $GITHUB_TOKEN" \
-                          -H "Accept: application/vnd.github+json" \
-                          "$API_URL?per_page=100")
+                    echo "${response}" > dependabot_alerts.json
 
-                        # Safety check for GitHub errors
-                        if echo "$response" | jq -e '.message?' >/dev/null; then
-                            echo "❌ GitHub API error:"
-                            echo "$response"
-                            exit 1
-                        fi
+                    high_critical_open_count=$(echo "${response}" | jq '[.[] 
+                        | select(
+                            .state == "open"
+                            and (.security_advisory.severity == "high"
+                                or .security_advisory.severity == "critical")
+                        )
+                    ] | length')
 
-                        high_critical_open_count=$(echo "$response" | jq '
-                          [
-                            .[] |
-                            select(
-                              .state=="open" and
-                              (
-                                .security_advisory.severity=="high" or
-                                .security_advisory.severity=="critical"
-                              )
-                            )
-                          ] | length
-                        ')
+                    echo "Open HIGH/CRITICAL Dependabot alerts: ${high_critical_open_count}"
 
-                        echo "Open HIGH/CRITICAL alerts: $high_critical_open_count"
-
-                        if [ "$high_critical_open_count" -gt 0 ]; then
-                            echo "❌ Blocking pipeline due to OPEN HIGH/CRITICAL alerts"
-                            echo "Affected dependencies:"
-                            echo "$response" | jq -r '
-                              .[] |
-                              select(
-                                .state=="open" and
-                                (
-                                  .security_advisory.severity=="high" or
-                                  .security_advisory.severity=="critical"
-                                )
-                              ) |
-                              "- \(.dependency.package.name) | \(.security_advisory.severity) | \(.security_advisory.summary)"
-                            '
-                            exit 1
-                        else
-                            echo "✅ No OPEN HIGH/CRITICAL Dependabot alerts found"
-                        fi
+                    if [ "${high_critical_open_count}" -gt 0 ]; then
+                        echo "❌ Blocking pipeline due to OPEN HIGH/CRITICAL Dependabot alerts"
+                        echo "Affected dependencies:"
+                        echo "$response" | jq '.[] 
+                        | select(.state=="open" 
+                        and (.security_advisory.severity=="high" 
+                        or .security_advisory.severity=="critical"))
+                        | {dependency: .dependency.package.name, severity: .security_advisory.severity, advisory: .security_advisory.summary}'
+                        exit 1
+                    else
+                        echo "✅ No OPEN HIGH/CRITICAL Dependabot alerts found"
+                    fi
                     '''
+                    
                 }
             }
         }
+
 
         stage('Build Image') {
             steps {
