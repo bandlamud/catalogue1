@@ -60,6 +60,48 @@ pipeline {
                 }
             }
         } */
+        stage('Dependabot Security Gate') {
+        environment {
+            GITHUB_OWNER = 'bandlamud'
+            GITHUB_REPO  = 'catalogue1'
+            GITHUB_API   = 'https://api.github.com/repos/bandlamud/catalogue1/dependabot/alerts'
+        }
+
+        steps {
+            withCredentials([string(credentialsId: 'GITHUB_TOKEN', variable: 'GITHUB_TOKEN')]) {
+                sh '''
+                    echo "🔍 Fetching Dependabot alerts..."
+
+                    ALERTS_JSON=$(curl -s \
+                    -H "Accept: application/vnd.github+json" \
+                    -H "Authorization: Bearer $GITHUB_TOKEN" \
+                    -H "X-GitHub-Api-Version: 2022-11-28" \
+                    $GITHUB_API/repos/$GITHUB_OWNER/$GITHUB_REPO/dependabot/alerts)
+
+                    echo "🚦 Evaluating OPEN + HIGH/CRITICAL alerts..."
+
+                    FAIL_COUNT=$(echo "$ALERTS_JSON" | jq '
+                    [
+                        .[] |
+                        select(
+                        .state == "open" and
+                        (
+                            .security_advisory.severity == "high" or
+                            .security_advisory.severity == "critical"
+                        )
+                        )
+                    ] | length
+                    ')
+
+                    if [ "$FAIL_COUNT" -gt 0 ]; then
+                        echo "❌ BLOCKING PIPELINE: $FAIL_COUNT OPEN HIGH/CRITICAL Dependabot alerts found"
+                        exit 1
+                    else
+                        echo "✅ PASS: No OPEN HIGH/CRITICAL Dependabot alerts found"
+                    fi
+                '''
+            }
+        }
          stage('Build Image') {
             steps {
                script {
@@ -77,7 +119,11 @@ pipeline {
                 }
                }
             }
+        
         }
+    
+}
+
     }
     post { 
         always { 
