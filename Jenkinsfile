@@ -66,7 +66,6 @@ pipeline {
                 GITHUB_REPO  = 'catalogue1'
                 GITHUB_API   = 'https://api.github.com/repos/bandlamud/catalogue1/dependabot/alerts'
             }
-
         steps {
             withCredentials([string(credentialsId: 'GITHUB_TOKEN', variable: 'GITHUB_TOKEN')]) {
                 sh '''
