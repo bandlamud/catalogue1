@@ -1,144 +1,131 @@
 pipeline {
-    // this is the pre-build section
+    // These are pre-build sections
     agent {
         node {
             label 'AGENT-1'
-                
         }
     }
     environment {
         COURSE = "Jenkins"
-        appVersion = " "
+        appVersion = ""
         ACC_ID = "022779559954"
         PROJECT = "roboshop"
         COMPONENT = "catalogue"
     }
     options {
-                timeout(time: 1, unit: 'HOURS') 
-                disableConcurrentBuilds()
-            }
+        timeout(time: 10, unit: 'MINUTES') 
+        disableConcurrentBuilds()
+    }
+    // This is build section
     stages {
         stage('Read Version') {
             steps {
-                script {
+                script{
                     def packageJSON = readJSON file: 'package.json'
                     appVersion = packageJSON.version
-                    echo "package version = ${appVersion}"
+                    echo "app version: ${appVersion}"
                 }
-               
             }
         }
         stage('Install Dependencies') {
             steps {
-               script {
-
+                script{
                     sh """
                         npm install
                     """
-               }
+                }
             }
         }
-        stage('unit test') {
+        stage('Unit Test') {
             steps {
-               script {
-
+                script{
                     sh """
                         npm test
                     """
-               }
-            }
-        }
-         /* stage('sonar scan') {
-            environment {
-                def scannerHome = tool 'sonar-8.0'
-            }
-            steps {
-                script {
-                    withSonarQubeEnv('sonar-server') {
-                        sh "${scannerHome}/bin/sonar-scanner"
-                    }
                 }
             }
-        } */
+        }
+        
         stage('Dependabot Security Gate') {
             environment {
                 GITHUB_OWNER = 'bandlamud'
                 GITHUB_REPO  = 'catalogue1'
-                GITHUB_API   = 'https://api.github.com/repos/bandlamud/catalogue1/dependabot/alerts'
+                GITHUB_API   = 'https://api.github.com'
                 GITHUB_TOKEN = credentials('GITHUB_TOKEN')
             }
-        steps {
-            script{
-                sh '''
-                        echo "🔍 Fetching Dependabot alerts..."
 
-                        ALERTS_JSON=$(curl -s \
-                        -H "Accept: application/vnd.github+json" \
-                        -H "Authorization: Bearer $GITHUB_TOKEN" \
-                        -H "X-GitHub-Api-Version: 2022-11-28" \
-                        $GITHUB_API/repos/$GITHUB_OWNER/$GITHUB_REPO/dependabot/alerts)
-
-                        echo "🚦 Evaluating OPEN + HIGH/CRITICAL alerts..."
-
-                        FAIL_COUNT=$(echo "$ALERTS_JSON" | jq '
-                        [
-                            .[] |
-                            select(
-                                .state == "open" and
-                            (
-                                .security_advisory.severity == "high" or
-                                .security_advisory.severity == "critical"
-                            )
-                            )
-                        ] | length
-                        ')
-
-                        if [ "$FAIL_COUNT" -gt 0 ]; then
-                            echo "❌ BLOCKING PIPELINE: $FAIL_COUNT OPEN HIGH/CRITICAL Dependabot alerts found"
-                            exit 1
-                        else
-                            echo "✅ PASS: No OPEN HIGH/CRITICAL Dependabot alerts found"
-                        fi
-                '''
-            }
-        }
-         stage('Build Image') {
             steps {
-               script {
-                withAWS(region:'us-east-1',credentials:'aws-creds') {
-                    sh """
-                        aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ${ACC_ID}.dkr.ecr.us-east-1.amazonaws.com
+                script{
+                    /* Use sh """ when you want to use Groovy variables inside the shell.
+                    Use sh ''' when you want the script to be treated as pure shell. */
+                    sh '''
+                    echo "Fetching Dependabot alerts..."
 
-                        docker build -t ${ACC_ID}.dkr.ecr.us-east-1.amazonaws.com/${PROJECT}/${COMPONENT}:${appVersion} .
+                    response=$(curl -s \
+                        -H "Authorization: token ${GITHUB_TOKEN}" \
+                        -H "Accept: application/vnd.github+json" \
+                        "${GITHUB_API}/repos/${GITHUB_OWNER}/${GITHUB_REPO}/dependabot/alerts?per_page=100")
 
-                        docker images
+                    echo "${response}" > dependabot_alerts.json
 
-                        docker push ${ACC_ID}.dkr.ecr.us-east-1.amazonaws.com/${PROJECT}/${COMPONENT}:${appVersion}
-                    """
+                    high_critical_open_count=$(echo "${response}" | jq '[.[] 
+                        | select(
+                            .state == "open"
+                            and (.security_advisory.severity == "high"
+                                or .security_advisory.severity == "critical")
+                        )
+                    ] | length')
 
+                    echo "Open HIGH/CRITICAL Dependabot alerts: ${high_critical_open_count}"
+
+                    if [ "${high_critical_open_count}" -gt 0 ]; then
+                        echo "❌ Blocking pipeline due to OPEN HIGH/CRITICAL Dependabot alerts"
+                        echo "Affected dependencies:"
+                        echo "$response" | jq '.[] 
+                        | select(.state=="open" 
+                        and (.security_advisory.severity=="high" 
+                        or .security_advisory.severity=="critical"))
+                        | {dependency: .dependency.package.name, severity: .security_advisory.severity, advisory: .security_advisory.summary}'
+                        exit 1
+                    else
+                        echo "✅ No OPEN HIGH/CRITICAL Dependabot alerts found"
+                    fi
+                    '''
+                    
                 }
-               }
             }
-        
         }
-    
-}
 
-    }
-    post { 
-        always { 
+        stage('Build Image') {
+            steps {
+                script{
+                    withAWS(region:'us-east-1',credentials:'aws-creds') {
+                        sh """
+                            aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ${ACC_ID}.dkr.ecr.us-east-1.amazonaws.com
+                            docker build -t ${ACC_ID}.dkr.ecr.us-east-1.amazonaws.com/${PROJECT}/${COMPONENT}:${appVersion} .
+                            docker images
+                            docker push ${ACC_ID}.dkr.ecr.us-east-1.amazonaws.com/${PROJECT}/${COMPONENT}:${appVersion}
+                        """
+                    }
+                }
+            }
+        }
+
+        
+
+    post{
+        always{
             echo 'I will always say Hello again!'
             cleanWs()
-            }
-            success {
-              echo 'I will run if success'  
-            }
-            failure {
-              echo 'I will run if failure'  
-            }
-            aborted {
-                echo 'Pipeline is aborted'
-            }
         }
-     }
-        
+        success {
+            echo 'I will run if success'
+        }
+        failure {
+            echo 'I will run if failure'
+        }
+        aborted {
+            echo 'pipeline is aborted'
+        }
+    }
+}
