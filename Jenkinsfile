@@ -61,11 +61,11 @@ pipeline {
             }
         } */
         stage('Dependabot Security Gate') {
-        environment {
-            GITHUB_OWNER = 'bandlamud'
-            GITHUB_REPO  = 'catalogue1'
-            GITHUB_API   = 'https://api.github.com/repos/bandlamud/catalogue1/dependabot/alerts'
-        }
+            environment {
+                GITHUB_OWNER = 'bandlamud'
+                GITHUB_REPO  = 'catalogue1'
+                GITHUB_API   = 'https://api.github.com/repos/bandlamud/catalogue1/dependabot/alerts'
+            }
 
         steps {
             withCredentials([string(credentialsId: 'GITHUB_TOKEN', variable: 'GITHUB_TOKEN')]) {
@@ -84,7 +84,7 @@ pipeline {
                     [
                         .[] |
                         select(
-                        .state == "open" and
+                            .state == "open" and
                         (
                             .security_advisory.severity == "high" or
                             .security_advisory.severity == "critical"
