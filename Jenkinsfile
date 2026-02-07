@@ -32,13 +32,17 @@ pipeline {
 
         stage('Install Dependencies') {
             steps {
+                script {
                 sh 'npm install'
+                }
             }
         }
 
         stage('Unit Test') {
             steps {
+                script {
                 sh 'npm test'
+                }
             }
         }
 
@@ -105,6 +109,25 @@ pipeline {
             }
         }
     }
+      stage('Trivy scan') {
+            steps {
+                script {
+                    sh """
+                        trivy image \
+                        --scanners vuln \
+                        --severity HIGH,CRITICAL,MEDIUM \
+                        --pkg-types os \
+                        --exit-code 1 \
+                        --skip-db-update \
+                        --no-progress \
+                        --format table \
+                        ${ACC_ID}.dkr.ecr.us-east-1.amazonaws.com/roboshop/catalogue:1.1.1
+
+                    """
+                }
+            }
+        }
+
 
     post {
         always {
