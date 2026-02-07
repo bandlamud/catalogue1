@@ -109,26 +109,21 @@ pipeline {
             }
         }
     }
-      stage('Trivy scan') {
+     stage('Trivy Scan'){
             steps {
-                script {
+                script{
                     sh """
                         trivy image \
                         --scanners vuln \
                         --severity HIGH,CRITICAL,MEDIUM \
                         --pkg-types os \
                         --exit-code 1 \
-                        --skip-db-update \
-                        --no-progress \
                         --format table \
-                        ${ACC_ID}.dkr.ecr.us-east-1.amazonaws.com/roboshop/catalogue:1.1.1
-
+                        ${ACC_ID}.dkr.ecr.us-east-1.amazonaws.com/${PROJECT}/${COMPONENT}:${appVersion}
                     """
                 }
             }
         }
-
-
     post {
         always {
             echo 'I will always say Hello again!'
