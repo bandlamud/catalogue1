@@ -7,7 +7,6 @@ pipeline {
 
     environment {
         COURSE = "Jenkins"
-        appVersion = ""
         ACC_ID = "022779559954"
         PROJECT = "roboshop"
         COMPONENT = "catalogue"
@@ -33,7 +32,7 @@ pipeline {
         stage('Install Dependencies') {
             steps {
                 script {
-                sh 'npm install'
+                    sh 'npm install'
                 }
             }
         }
@@ -41,7 +40,7 @@ pipeline {
         stage('Unit Test') {
             steps {
                 script {
-                sh 'npm test'
+                    sh 'npm test'
                 }
             }
         }
@@ -55,9 +54,7 @@ pipeline {
             }
 
             steps {
-                script{
-                    /* Use sh """ when you want to use Groovy variables inside the shell.
-                    Use sh ''' when you want the script to be treated as pure shell. */
+                script {
                     sh '''
                     echo "Fetching Dependabot alerts..."
 
@@ -91,27 +88,27 @@ pipeline {
                         echo "✅ No OPEN HIGH/CRITICAL Dependabot alerts found"
                     fi
                     '''
-                    
                 }
             }
         }
-
 
         stage('Build Image') {
             steps {
                 withAWS(region: 'us-east-1', credentials: 'aws-creds') {
-                    sh """
-                        aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ${ACC_ID}.dkr.ecr.us-east-1.amazonaws.com
-                        docker build -t ${ACC_ID}.dkr.ecr.us-east-1.amazonaws.com/${PROJECT}/${COMPONENT}:${appVersion} .
-                        docker push ${ACC_ID}.dkr.ecr.us-east-1.amazonaws.com/${PROJECT}/${COMPONENT}:${appVersion}
-                    """
+                    script {
+                        sh """
+                            aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ${ACC_ID}.dkr.ecr.us-east-1.amazonaws.com
+                            docker build -t ${ACC_ID}.dkr.ecr.us-east-1.amazonaws.com/${PROJECT}/${COMPONENT}:${appVersion} .
+                            docker push ${ACC_ID}.dkr.ecr.us-east-1.amazonaws.com/${PROJECT}/${COMPONENT}:${appVersion}
+                        """
+                    }
                 }
             }
         }
-    }
-     stage('Trivy Scan'){
+
+        stage('Trivy Scan') {
             steps {
-                script{
+                script {
                     sh """
                         trivy image \
                         --scanners vuln \
@@ -124,6 +121,8 @@ pipeline {
                 }
             }
         }
+    }
+
     post {
         always {
             echo 'I will always say Hello again!'
