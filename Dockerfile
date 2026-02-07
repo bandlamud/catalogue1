@@ -9,8 +9,8 @@ RUN npm install
 FROM node:20.19.5-alpine3.22
 # Create a group and user
 WORKDIR /opt/server
-# RUN apk update && \
-#     apk upgrade --no-cache
+RUN apk update && \
+    apk upgrade --no-cache
 RUN addgroup -S roboshop && adduser -S roboshop -G roboshop && \
     chown -R roboshop:roboshop /opt/server
 EXPOSE 8080
